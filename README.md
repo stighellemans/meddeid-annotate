@@ -4,7 +4,7 @@ Local primary-span annotation for canonical MedDeID JSONL. A reviewer can edit
 model pre-annotations or annotate from scratch, then save a completed assignment
 for training or curation.
 
-See [prepare and annotate data](https://meddeid.github.io/workflows/prepare-and-annotate/)
+See [prepare and annotate data](https://stighellemans.github.io/meddeid.github.io/workflows/prepare-and-annotate/)
 for the surrounding workflow. This repository remains authoritative for the
 annotation application's setup, storage, and interaction contract.
 
