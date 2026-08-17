@@ -37,15 +37,25 @@ Input validation is strict. Every record must use the canonical `document_id`,
 
 ## Docker
 
+The released container is the default route; no source checkout or Node.js
+installation is required:
+
 ```bash
-docker build -t meddeid-annotate .
+docker pull ghcr.io/stighellemans/meddeid-annotate:0.1.0
+mkdir -p data
+cp /path/to/annotations.jsonl data/annotations.jsonl
 docker run --rm -p 127.0.0.1:8787:8787 \
-  -v "$PWD/data:/app/data" meddeid-annotate
+  --read-only --cap-drop ALL --security-opt no-new-privileges \
+  -v "$PWD/data:/app/data" \
+  ghcr.io/stighellemans/meddeid-annotate:0.1.0
 ```
 
 The container reads and writes `data/annotations.jsonl`. The application does
 not provide authentication; keep it on localhost or place it behind an
 authenticated TLS reverse proxy that meets your organization’s requirements.
+
+To test an unreleased source change instead, run
+`docker build -t meddeid-annotate .` and substitute that image name above.
 
 ## Development
 
