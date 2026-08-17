@@ -13,7 +13,9 @@ ENV NODE_ENV=production \
     PORT=8787
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev \
+    && npm cache clean --force \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY contracts ./contracts
@@ -21,4 +23,4 @@ RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 VOLUME ["/app/data"]
 EXPOSE 8787
-CMD ["npm", "start"]
+CMD ["node", "server/index.js"]
