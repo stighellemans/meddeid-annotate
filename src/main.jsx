@@ -18,6 +18,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { adjustAnnotationsForTextChange } from './text-offsets.js';
+import defaultLabelShortcuts from '../config/label-shortcuts.json';
 import taxonomyContract from '../contracts/taxonomy.json';
 import './styles.css';
 
@@ -45,24 +46,15 @@ const AUTOSAVE_INTERVAL_MS = Number.isFinite(configuredAutosaveInterval) && conf
   ? configuredAutosaveInterval
   : 2 * 60 * 1000;
 
-const CATEGORY_DEFINITIONS = [
-  { value: 'Address_Location', key: 'a' },
-  { value: 'Age_Birthdate', key: 'l' },
-  { value: 'Anonymize_Other', key: 'x' },
-  { value: 'Contactdetails', key: 'c' },
-  { value: 'Date', key: 'd' },
-  { value: 'ID', key: 'i' },
-  { value: 'Name', key: 'n' },
-  { value: 'Organization', key: 'o' },
-  { value: 'Profession', key: 'b' },
-];
+const CATEGORY_DEFINITIONS = taxonomyContract.categories.map((value) => ({
+  value,
+  key: defaultLabelShortcuts.category_shortcuts[value] ?? null,
+}));
 
-const SUBTYPE_DEFINITIONS = [
-  { value: 'Caregiver', key: 'z' },
-  { value: 'Healthcare', key: 'h' },
-  { value: 'Patient', key: 'p' },
-  { value: 'Other', key: 'f' },
-];
+const SUBTYPE_DEFINITIONS = taxonomyContract.subtypes.map((value) => ({
+  value,
+  key: defaultLabelShortcuts.subtype_shortcuts[value] ?? null,
+}));
 
 const SUBTYPES_BY_CATEGORY = taxonomyContract.subtypes_by_category;
 const FALLBACK_LABELS = taxonomyContract.entity_labels;
@@ -1151,9 +1143,11 @@ function App() {
   const [undoStack, setUndoStack] = React.useState([]);
   const [redoStack, setRedoStack] = React.useState([]);
   const [draftRange, setDraftRange] = React.useState(null);
-  const [continueToNextUnsavedAfterSave, setContinueToNextUnsavedAfterSave] = React.useState(() => {
+  const [continueToNextPendingAfterSave, setContinueToNextPendingAfterSave] = React.useState(() => {
     try {
-      return window.localStorage.getItem('annotationSettings.continueToNextUnsavedAfterSave') !== 'false';
+      const stored = window.localStorage.getItem('annotationSettings.continueToNextPendingAfterSave');
+      const legacy = window.localStorage.getItem('annotationSettings.continueToNextUnsavedAfterSave');
+      return (stored ?? legacy) !== 'false';
     } catch {
       return true;
     }
@@ -1320,19 +1314,29 @@ function App() {
   const selectedMetadataEntries = React.useMemo(() => metadataEntries(selectedDoc), [selectedDoc]);
 
   const categoryByShortcut = React.useMemo(
-    () => Object.fromEntries(categories.map((category) => [category.key, category.value])),
+    () =>
+      Object.fromEntries(
+        categories.filter((category) => category.key).map((category) => [category.key, category.value]),
+      ),
     [categories],
   );
 
   const subtypeByShortcut = React.useMemo(
-    () => Object.fromEntries(subtypes.map((subtype) => [subtype.key, subtype.value])),
+    () =>
+      Object.fromEntries(
+        subtypes.filter((subtype) => subtype.key).map((subtype) => [subtype.key, subtype.value]),
+      ),
     [subtypes],
   );
 
-  function snapshot() {
+  function snapshot(historySelection = null) {
     return {
       documents: cloneDocuments(documents),
       dirtyDocIds: Array.from(dirtyDocIds),
+      selectedDocId: historySelection?.selectedDocId ?? selectedDocId,
+      selectedSpanIndex: historySelection?.selectedSpanIndex ?? selectedSpanIndex,
+      selectedSuggestionIndex:
+        historySelection?.selectedSuggestionIndex ?? selectedSuggestionIndex,
     };
   }
 
@@ -1349,15 +1353,20 @@ function App() {
         ...(markAllDirty ? nextSnapshot.documents.map((doc) => doc.document_id) : []),
       ]),
     );
+    if (nextSnapshot.selectedDocId) {
+      setSelectedDocId(nextSnapshot.selectedDocId);
+      setSelectedSpanIndex(nextSnapshot.selectedSpanIndex ?? 0);
+      setSelectedSuggestionIndex(nextSnapshot.selectedSuggestionIndex ?? -1);
+    }
   }
 
   function undo() {
     setUndoStack((current) => {
       if (current.length === 0) return current;
       const previous = current[current.length - 1];
-      setRedoStack((redo) => [...redo, snapshot()]);
+      setRedoStack((redo) => [...redo, snapshot(previous)]);
       restoreSnapshot(previous, { markAllDirty: true });
-      setStatus('Undid last change; save affected documents to persist');
+      setStatus(`Undid last change in ${previous.selectedDocId}; save affected documents to persist`);
       return current.slice(0, -1);
     });
   }
@@ -1366,9 +1375,9 @@ function App() {
     setRedoStack((current) => {
       if (current.length === 0) return current;
       const next = current[current.length - 1];
-      setUndoStack((undoItems) => [...undoItems, snapshot()]);
+      setUndoStack((undoItems) => [...undoItems, snapshot(next)]);
       restoreSnapshot(next, { markAllDirty: true });
-      setStatus('Redid last change; save affected documents to persist');
+      setStatus(`Redid last change in ${next.selectedDocId}; save affected documents to persist`);
       return current.slice(0, -1);
     });
   }
@@ -1432,13 +1441,13 @@ function App() {
   React.useEffect(() => {
     try {
       window.localStorage.setItem(
-        'annotationSettings.continueToNextUnsavedAfterSave',
-        String(continueToNextUnsavedAfterSave),
+        'annotationSettings.continueToNextPendingAfterSave',
+        String(continueToNextPendingAfterSave),
       );
     } catch {
       // Ignore storage failures; the in-memory setting still applies for this session.
     }
-  }, [continueToNextUnsavedAfterSave]);
+  }, [continueToNextPendingAfterSave]);
 
   React.useEffect(() => {
     try {
@@ -1513,7 +1522,7 @@ function App() {
         event.preventDefault();
         if (selectedDoc) {
           void saveDocument(selectedDoc.document_id, null, {
-            continueToNextUnsaved: continueToNextUnsavedAfterSave,
+            continueToNextPending: continueToNextPendingAfterSave,
           });
         }
         return;
@@ -1568,7 +1577,7 @@ function App() {
     categoryByShortcut,
     documents,
     dirtyDocIds,
-    continueToNextUnsavedAfterSave,
+    continueToNextPendingAfterSave,
     redoStack,
     selectedDoc,
     selectedDocIndex,
@@ -1591,14 +1600,16 @@ function App() {
     setDirtyDocIds((current) => new Set([...current, documentId]));
   }
 
-  function findNextUnsavedDocumentId(afterDocumentId) {
-    const isNextUnsaved = (doc) => doc.document_id !== afterDocumentId && dirtyDocIds.has(doc.document_id);
+  function findNextPendingDocumentId(afterDocumentId) {
+    const isNextPending = (doc) =>
+      doc.document_id !== afterDocumentId &&
+      (!isDocumentAnnotated(doc) || dirtyDocIds.has(doc.document_id));
     const visibleIndex = visibleDocuments.findIndex((doc) => doc.document_id === afterDocumentId);
     const visibleOrderedDocuments =
       visibleIndex >= 0
         ? [...visibleDocuments.slice(visibleIndex + 1), ...visibleDocuments.slice(0, visibleIndex)]
         : visibleDocuments;
-    const visibleMatch = visibleOrderedDocuments.find(isNextUnsaved);
+    const visibleMatch = visibleOrderedDocuments.find(isNextPending);
     if (visibleMatch) return visibleMatch.document_id;
 
     const documentIndex = documents.findIndex((doc) => doc.document_id === afterDocumentId);
@@ -1606,7 +1617,7 @@ function App() {
       documentIndex >= 0
         ? [...documents.slice(documentIndex + 1), ...documents.slice(0, documentIndex)]
         : documents;
-    return orderedDocuments.find(isNextUnsaved)?.document_id ?? null;
+    return orderedDocuments.find(isNextPending)?.document_id ?? null;
   }
 
   function validateDocumentForSave(doc) {
@@ -1685,7 +1696,7 @@ function App() {
     setStatus(`Changed selected span to ${composeLabel(nextCategory, nextSubtype)}`);
   }
 
-  async function saveDocument(documentId, overrideDoc = null, { continueToNextUnsaved = false } = {}) {
+  async function saveDocument(documentId, overrideDoc = null, { continueToNextPending = false } = {}) {
     const doc = overrideDoc ?? documents.find((entry) => entry.document_id === documentId);
     if (!doc) return false;
     if (!validateDocumentForSave(doc)) return false;
@@ -1701,10 +1712,10 @@ function App() {
     }
     const payload = await response.json();
     applySavedDocuments([payload.document]);
-    const nextUnsavedDocumentId = continueToNextUnsaved ? findNextUnsavedDocumentId(documentId) : null;
-    if (nextUnsavedDocumentId) {
-      selectDocument(nextUnsavedDocumentId);
-      setStatus(`Saved ${documentId}; moved to ${nextUnsavedDocumentId}`);
+    const nextPendingDocumentId = continueToNextPending ? findNextPendingDocumentId(documentId) : null;
+    if (nextPendingDocumentId) {
+      selectDocument(nextPendingDocumentId);
+      setStatus(`Saved ${documentId}; moved to ${nextPendingDocumentId}`);
     } else {
       setStatus(`Saved ${documentId}`);
     }
@@ -1771,7 +1782,7 @@ function App() {
     }
     if (!selectedDoc) return Promise.resolve(false);
     return saveDocument(selectedDoc.document_id, null, {
-      continueToNextUnsaved: continueToNextUnsavedAfterSave,
+      continueToNextPending: continueToNextPendingAfterSave,
     });
   }
 
@@ -2335,12 +2346,12 @@ function App() {
             <div className="settings-popover">
               <strong>Settings</strong>
               <label className="settings-option">
-                <span>Continue to next unsaved after saving</span>
+                <span>Continue to next pending document after saving</span>
                 <span className="switch">
                   <input
                     type="checkbox"
-                    checked={continueToNextUnsavedAfterSave}
-                    onChange={(event) => setContinueToNextUnsavedAfterSave(event.target.checked)}
+                    checked={continueToNextPendingAfterSave}
+                    onChange={(event) => setContinueToNextPendingAfterSave(event.target.checked)}
                   />
                   <span className="switch-track" aria-hidden="true" />
                 </span>
@@ -2643,7 +2654,7 @@ function App() {
                   disabled={!selectedSpan || selectedSpan._changeStatus === 'deleted'}
                   title={`Set category: ${category.value}`}
                 >
-                  <kbd>{category.key}</kbd>
+                  {category.key && <kbd>{category.key}</kbd>}
                   <span>{category.value}</span>
                 </button>
               ))}
@@ -2668,7 +2679,7 @@ function App() {
                     disabled={!selectedSpan || selectedSpan._changeStatus === 'deleted' || !enabled}
                     title={enabled ? `Set subtype: ${subtype.value}` : `Subtype not valid for ${selectedCategory || 'category'}`}
                   >
-                    <kbd>{subtype.key}</kbd>
+                    {subtype.key && <kbd>{subtype.key}</kbd>}
                     <span>{subtype.value}</span>
                   </button>
                 );

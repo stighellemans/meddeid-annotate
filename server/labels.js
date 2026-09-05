@@ -4,27 +4,8 @@ const contract = JSON.parse(
   fs.readFileSync(new URL('../contracts/taxonomy.json', import.meta.url), 'utf8'),
 );
 
-// Keyboard choices are UI metadata. Taxonomy membership and subtype validity
-// come exclusively from the generated meddeid-core contract.
-const CATEGORY_KEYS = Object.freeze({
-  Address_Location: 'a',
-  Age_Birthdate: 'l',
-  Anonymize_Other: 'x',
-  Contactdetails: 'c',
-  Date: 'd',
-  ID: 'i',
-  Name: 'n',
-  Organization: 'o',
-  Profession: 'b',
-});
-const SUBTYPE_KEYS = Object.freeze({ Caregiver: 'z', Healthcare: 'h', Patient: 'p', Other: 'f' });
-
-export const CATEGORIES = Object.freeze(
-  contract.categories.map((value) => Object.freeze({ value, key: CATEGORY_KEYS[value] })),
-);
-export const SUBTYPES = Object.freeze(
-  contract.subtypes.map((value) => Object.freeze({ value, key: SUBTYPE_KEYS[value] })),
-);
+export const CATEGORY_VALUES = Object.freeze(contract.categories);
+export const SUBTYPE_VALUES = Object.freeze(contract.subtypes);
 export const SUBTYPES_BY_CATEGORY = Object.freeze(contract.subtypes_by_category);
 export const LABELS = Object.freeze(contract.entity_labels);
 

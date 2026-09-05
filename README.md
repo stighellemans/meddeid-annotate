@@ -4,12 +4,19 @@ Local primary-span annotation for canonical MedDeID JSONL. A reviewer can edit
 model pre-annotations or annotate from scratch, then save a completed assignment
 for training or curation.
 
-See [prepare and annotate data](https://stighellemans.github.io/meddeid.github.io/workflows/prepare-and-annotate/)
+See [prepare and annotate data](https://stighellemans.github.io/meddeid/workflows/prepare-and-annotate/)
 for the surrounding workflow. This repository remains authoritative for the
 annotation application's setup, storage, and interaction contract.
 
 Use `meddeid-curate` to reconcile independent annotation sets and
 `meddeid-subannotate` to add core-PII character segments for evaluation.
+
+## Interface preview
+
+![Primary-span annotation interface showing synthetic clinical text with highlighted PII spans](docs/images/interface.jpg)
+
+The example uses synthetic data. The document list, text reader, label controls,
+keyboard shortcuts, and review progress remain visible together during review.
 
 ## Run locally
 
@@ -24,6 +31,48 @@ The development server binds to `127.0.0.1`. The configured JSONL file is the
 current annotation state and is updated in place. It may begin with empty spans
 or with predictions produced by `meddeid batch`; reviewers edit, delete, and add
 spans through the same interface. A document remains unreviewed until saved.
+
+### Review settings
+
+Settings are stored in the browser for the current origin. **Continue to next
+pending document after saving** advances to the next document that is either
+unreviewed or has unsaved edits, preferring the current filtered list. The
+autosave setting persists valid edits without marking a document reviewed;
+review completion always requires an explicit save. Annotation-state tags,
+document-text editing, and reader width take effect immediately. **Reset
+tracking** preserves all spans and document text while marking every document
+unreviewed again.
+
+### Label shortcut configuration
+
+The shipped [`config/label-shortcuts.json`](config/label-shortcuts.json) keeps
+the existing Dutch-oriented keyboard bindings. To use bindings suited to
+another language or annotation team, copy that file, edit the one-character
+keys, and start the app with:
+
+```bash
+MEDDEID_LABEL_SHORTCUTS_CONFIG=/path/to/my-label-shortcuts.json \
+MEDDEID_ANNOTATIONS_PATH=/path/to/annotations.jsonl npm run dev
+```
+
+Category and subtype entries may be omitted when they should remain clickable
+and selectable without a keyboard shortcut. Keys are case-insensitive and must
+be unique across both maps. Startup fails with a descriptive error for an
+unknown taxonomy value, duplicate key, malformed JSON, or unsupported schema
+version. This configuration changes only keyboard bindings; the canonical
+labels and valid category/subtype combinations still come from
+`contracts/taxonomy.json`.
+
+For the released container, mount the custom file read-only and point the same
+environment variable at it:
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 \
+  -e MEDDEID_LABEL_SHORTCUTS_CONFIG=/app/custom-label-shortcuts.json \
+  -v "$PWD/data:/app/data" \
+  -v "$PWD/my-label-shortcuts.json:/app/custom-label-shortcuts.json:ro" \
+  ghcr.io/stighellemans/meddeid-annotate:0.2.0
+```
 
 ## Input contract
 
@@ -41,13 +90,13 @@ The released container is the default route; no source checkout or Node.js
 installation is required:
 
 ```bash
-docker pull ghcr.io/stighellemans/meddeid-annotate:0.1.0
+docker pull ghcr.io/stighellemans/meddeid-annotate:0.2.0
 mkdir -p data
 cp /path/to/annotations.jsonl data/annotations.jsonl
 docker run --rm -p 127.0.0.1:8787:8787 \
   --read-only --cap-drop ALL --security-opt no-new-privileges \
   -v "$PWD/data:/app/data" \
-  ghcr.io/stighellemans/meddeid-annotate:0.1.0
+  ghcr.io/stighellemans/meddeid-annotate:0.2.0
 ```
 
 The container reads and writes `data/annotations.jsonl`. The application does

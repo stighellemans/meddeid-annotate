@@ -1,0 +1,20 @@
+{
+  "schema_version": "meddeid.label-shortcuts.v1",
+  "category_shortcuts": {
+    "Address_Location": "a",
+    "Age_Birthdate": "l",
+    "Anonymize_Other": "x",
+    "Contactdetails": "c",
+    "Date": "d",
+    "ID": "i",
+    "Name": "n",
+    "Organization": "o",
+    "Profession": "b"
+  },
+  "subtype_shortcuts": {
+    "Caregiver": "z",
+    "Healthcare": "h",
+    "Patient": "p",
+    "Other": "f"
+  }
+}

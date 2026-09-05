@@ -19,6 +19,7 @@ RUN npm ci --omit=dev \
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY contracts ./contracts
+COPY config ./config
 RUN mkdir -p /app/data && chown -R node:node /app
 USER node
 VOLUME ["/app/data"]

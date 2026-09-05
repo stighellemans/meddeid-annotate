@@ -1,13 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
-  CATEGORIES,
+  CATEGORY_VALUES,
   LABELS,
-  SUBTYPES,
+  SUBTYPE_VALUES,
   SUBTYPES_BY_CATEGORY,
   composeLabel,
   splitLabel,
 } from './labels.js';
+import { applyLabelShortcuts, loadLabelShortcuts } from './label-shortcuts.js';
 
 const DEFAULT_DATA_PATH = process.env.MEDDEID_ANNOTATIONS_PATH
   || process.env.DEID_ANNOTATIONS_PATH
@@ -421,11 +422,13 @@ function buildStats(documents) {
 export function createAnnotationStore({
   rootDir,
   dataPath = DEFAULT_DATA_PATH,
+  labelShortcutsConfigPath = process.env.MEDDEID_LABEL_SHORTCUTS_CONFIG,
 } = {}) {
   const resolvedRoot = rootDir ?? process.cwd();
   const jsonlPath = path.resolve(resolvedRoot, dataPath);
 
   let cache = null;
+  let labelShortcutsPromise = null;
   let writeQueue = Promise.resolve();
   let tmpCounter = 0;
 
@@ -445,6 +448,11 @@ export function createAnnotationStore({
   }
 
   async function load() {
+    labelShortcutsPromise ??= loadLabelShortcuts({
+      rootDir: resolvedRoot,
+      configPath: labelShortcutsConfigPath,
+    });
+    await labelShortcutsPromise;
     try {
       const rawText = await fs.readFile(jsonlPath, 'utf8');
       const documents = assertSupportedLabels(
@@ -510,11 +518,16 @@ export function createAnnotationStore({
 
   async function getBootstrap() {
     const documents = await getDocuments();
+    const labelShortcuts = await labelShortcutsPromise;
     return {
       labels: LABELS,
-      categories: CATEGORIES,
-      subtypes: SUBTYPES,
+      categories: applyLabelShortcuts(CATEGORY_VALUES, labelShortcuts.categoryShortcuts),
+      subtypes: applyLabelShortcuts(SUBTYPE_VALUES, labelShortcuts.subtypeShortcuts),
       subtypesByCategory: SUBTYPES_BY_CATEGORY,
+      labelShortcutsConfig: {
+        schemaVersion: labelShortcuts.schemaVersion,
+        path: labelShortcuts.path,
+      },
       documents,
       stats: buildStats(documents),
       dataPath: jsonlPath,

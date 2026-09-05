@@ -1,6 +1,6 @@
 {
   "name": "meddeid-annotate",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local primary-span annotation for canonical MedDeID JSONL",
   "private": true,
   "author": "Stig Hellemans",
@@ -16,7 +16,7 @@
     "start": "node server/index.js",
     "build": "vite build",
     "test": "node --test \"tests/**/*.test.js\"",
-    "test:browser": "node tests/browser/smoke.mjs",
+    "test:browser": "node tests/browser/run.mjs",
     "taxonomy:sync": "python3 scripts/sync_taxonomy.py"
   },
   "dependencies": {
