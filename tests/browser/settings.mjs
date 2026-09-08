@@ -113,7 +113,7 @@ try {
   const settingsButton = page.getByLabel('Settings', { exact: true });
   const settingsMenu = page.locator('details.settings-menu');
   const closeSettings = async () => {
-    await page.getByRole('heading', { name: 'Annotation Search Console' }).click();
+    await page.getByRole('heading', { name: 'Document review' }).click();
     await settingsMenu.locator('.settings-popover').waitFor({ state: 'hidden' });
   };
 
@@ -229,7 +229,7 @@ try {
   await closeSettings();
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.app-shell.layout-max').waitFor();
-  await page.getByRole('textbox', { name: 'Edit text for settings-001' }).waitFor();
+  await page.getByRole('textbox', { name: 'Edit text for settings-003' }).waitFor();
   await settingsButton.click();
   if (!(await continueToggle.isChecked())) throw new Error('Continue setting did not persist');
   if (await autoSaveToggle.isChecked()) throw new Error('Autosave setting did not persist');

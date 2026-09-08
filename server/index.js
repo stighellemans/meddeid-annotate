@@ -2,6 +2,8 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createWorkspaceRouter } from './workspace-router.js';
+import { createAnnotationRouter } from './annotation-router.js';
 import { createAnnotationStore } from './annotation-store.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -9,78 +11,27 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const port = Number(process.env.PORT || 8787);
 const host = process.env.HOST || '127.0.0.1';
+const browserHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+const browserUrl = process.env.MEDDEID_BROWSER_URL || `http://${browserHost}:${port}`;
 
-const store = createAnnotationStore({ rootDir });
 const app = express();
-
-try {
+app.use(express.json({ limit: '32mb' }));
+const legacy = !process.env.MEDDEID_WORKSPACE_DIR &&
+  (process.env.MEDDEID_ANNOTATIONS_PATH || process.env.DEID_ANNOTATIONS_PATH || fs.existsSync(path.join(rootDir, 'data/annotations.jsonl')));
+if (legacy) {
+  const store = createAnnotationStore({ rootDir });
   await store.load();
-} catch (error) {
-  console.error('Failed to load annotation data:', error);
-  process.exit(1);
+  app.get('/api/workspace', (_req, res) => res.json({ mode: 'legacy' }));
+  app.use('/api', createAnnotationRouter({ store }));
+} else {
+  app.use('/api', await createWorkspaceRouter({ rootDir, kind: 'annotate' }));
 }
-
-app.use(express.json({ limit: '20mb' }));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
 
-app.get('/api/bootstrap', async (_req, res) => {
-  try {
-    res.json(await store.getBootstrap());
-  } catch (error) {
-    res.status(500).json({
-      error: 'Failed to load annotations',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-app.put('/api/documents/:documentId', async (req, res) => {
-  try {
-    if (!Array.isArray(req.body?.spans)) {
-      return res.status(400).json({
-        error: 'Failed to save document',
-        detail: 'Request body must contain canonical spans; annotations is not accepted',
-      });
-    }
-    const document = await store.saveDocument(
-      req.params.documentId,
-      req.body.spans,
-      req.body ?? {},
-    );
-    res.json({ document });
-  } catch (error) {
-    res.status(error?.statusCode ?? 500).json({
-      error: 'Failed to save document',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-app.post('/api/batch/relabel', async (req, res) => {
-  try {
-    res.json(await store.batchRelabel(req.body ?? {}));
-  } catch (error) {
-    res.status(error?.statusCode ?? 500).json({
-      error: 'Failed to batch relabel',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-app.post('/api/tracking/reset', async (_req, res) => {
-  try {
-    res.json(await store.resetTracking());
-  } catch (error) {
-    res.status(error?.statusCode ?? 500).json({
-      error: 'Failed to reset tracking',
-      detail: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Unknown API action.' }));
 const distDir = path.join(rootDir, 'dist');
 if (fs.existsSync(path.join(distDir, 'index.html'))) {
   app.use(express.static(distDir));
@@ -88,7 +39,8 @@ if (fs.existsSync(path.join(distDir, 'index.html'))) {
 }
 
 const server = app.listen(port, host, () => {
-  console.log(`MedDeID Annotate listening on http://${host}:${port}`);
+  console.log(`MedDeID Annotate listening internally on ${host}:${port}`);
+  console.log(`Open in your browser: ${browserUrl}`);
 });
 
 server.on('error', (error) => {

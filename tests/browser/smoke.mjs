@@ -89,7 +89,7 @@ try {
     window.localStorage.setItem('annotationSettings.autoSaveEnabled', 'false');
   });
   await page.goto(`http://127.0.0.1:${clientPort}`, { waitUntil: 'networkidle' });
-  await page.getByRole('heading', { name: 'Annotation Search Console' }).waitFor();
+  await page.getByRole('heading', { name: 'Document review' }).waitFor();
   await page.getByText('smoke-001', { exact: false }).first().waitFor();
   await page.getByRole('button', { name: /^Save/ }).first().waitFor();
 
@@ -100,7 +100,7 @@ try {
     name: 'Auto-save every 2 min (keep tracking state)',
   });
   await autoSaveToggle.uncheck({ force: true });
-  await page.getByRole('heading', { name: 'Annotation Search Console' }).click();
+  await page.getByRole('heading', { name: 'Document review' }).click();
   await settingsMenu.locator('.settings-popover').waitFor({ state: 'hidden' });
 
   const queryInfo = page.locator('details.query-info');
@@ -161,13 +161,13 @@ try {
   // it through the document reload path.
   await page.getByLabel('Settings', { exact: true }).click();
   await autoSaveToggle.check({ force: true });
-  await page.getByRole('heading', { name: 'Annotation Search Console' }).click();
+  await page.getByRole('heading', { name: 'Document review' }).click();
   await page.locator('#selected-category').selectOption('Name');
   await page.locator('#selected-subtype').selectOption('Patient');
   await page.getByText('Auto-saved 1 document', { exact: true }).waitFor();
   await page.getByLabel('Settings', { exact: true }).click();
   await autoSaveToggle.uncheck({ force: true });
-  await page.getByRole('heading', { name: 'Annotation Search Console' }).click();
+  await page.getByRole('heading', { name: 'Document review' }).click();
   await page.locator('#selected-category').selectOption('Date');
   await page.getByRole('button', { name: 'Reload doc' }).click();
   await page.getByText('Reloaded smoke-001; discarded unsaved changes for this document only', { exact: true }).waitFor();

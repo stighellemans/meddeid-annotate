@@ -5,6 +5,16 @@ semantic versioning while pre-1.0 versions may still refine public contracts.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-08
+
+- Added a persistent browser workspace for importing, switching, resuming,
+  exporting, updating, archiving, restoring, and permanently removing
+  independent annotation assignments.
+- Added shared-workspace handoffs to Curate and Subannotate with immutable
+  source versions, provenance, safe update previews, and recovery history.
+- Retained the standalone file workflow and hardened its browser smoke coverage
+  for the renamed document-review interface.
+
 ## [0.2.0] - 2026-09-05
 
 - Added a validated JSON configuration for language- and team-specific label

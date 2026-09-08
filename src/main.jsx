@@ -1,4 +1,5 @@
 import React from 'react';
+import Workspace from './Workspace.jsx';
 import { createRoot } from 'react-dom/client';
 import {
   Check,
@@ -22,7 +23,7 @@ import defaultLabelShortcuts from '../config/label-shortcuts.json';
 import taxonomyContract from '../contracts/taxonomy.json';
 import './styles.css';
 
-const API_ROOT = '/api';
+
 
 const READER_WIDTH_MODES = [
   { value: 'balanced', label: 'Balanced' },
@@ -1120,7 +1121,16 @@ function textSegments(
   return pieces;
 }
 
-function App() {
+function App({ apiRoot = '/api', assignmentId = 'legacy', onWorkspaceState, workspaceControl } = {}) {
+  const API_ROOT = apiRoot;
+  const [pendingRequests, setPendingRequests] = React.useState(0);
+  async function assignmentFetch(url, options) {
+    const writing = options?.method && options.method !== 'GET';
+    if (writing) setPendingRequests((n) => n + 1);
+    try { return await fetch(url, options); }
+    finally { if (writing) setPendingRequests((n) => n - 1); }
+  }
+
   const [documents, setDocuments] = React.useState([]);
   const [savedDocuments, setSavedDocuments] = React.useState([]);
   const [labels, setLabels] = React.useState(FALLBACK_LABELS);
@@ -1134,7 +1144,9 @@ function App() {
   // freely; searching only runs when the user commits it (Enter), at which
   // point `submittedQuery` is updated.
   const [submittedQuery, setSubmittedQuery] = React.useState('');
-  const [selectedDocId, setSelectedDocId] = React.useState(null);
+  const [selectedDocId, setSelectedDocId] = React.useState(() => {
+    try { return localStorage.getItem(`meddeid.annotate.${assignmentId}.position`) || null; } catch { return null; }
+  });
   const [selectedSpanIndex, setSelectedSpanIndex] = React.useState(0);
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = React.useState(-1);
   const [batchCategory, setBatchCategory] = React.useState('Address_Location');
@@ -1401,7 +1413,7 @@ function App() {
           payload.stats?.annotatedCount ?? 0
         } annotated documents`,
     );
-    if (!selectedDocId && payload.documents?.[0]) {
+    if (!payload.documents?.some((doc) => doc.document_id === selectedDocId) && payload.documents?.[0]) {
       setSelectedDocId(payload.documents[0].document_id);
       setSelectedSpanIndex(0);
     }
@@ -1409,7 +1421,7 @@ function App() {
 
   async function loadData() {
     setStatus('Loading data...');
-    const response = await fetch(`${API_ROOT}/bootstrap`);
+    const response = await assignmentFetch(`${API_ROOT}/bootstrap`);
     if (!response.ok) throw new Error(await response.text());
     applyBootstrapPayload(await response.json());
   }
@@ -1417,6 +1429,21 @@ function App() {
   React.useEffect(() => {
     loadData().catch((error) => setStatus(`Load failed: ${error.message}`));
   }, []);
+
+  React.useLayoutEffect(() => {
+    onWorkspaceState?.({
+      dirty: dirtyDocIds.size > 0,
+      saving: pendingRequests > 0,
+      reviewed: savedDocuments.filter((doc) => doc.annotated === true).length,
+      total: savedDocuments.length,
+      save: () => saveAllDirtyDocuments({ preserveAnnotationState: true }),
+    });
+  });
+  React.useEffect(() => {
+    if (selectedDocId) {
+      try { localStorage.setItem(`meddeid.annotate.${assignmentId}.position`, selectedDocId); } catch { /* storage may be unavailable */ }
+    }
+  }, [selectedDocId, assignmentId]);
 
   React.useEffect(() => {
     function dismissPopoverMenus(event) {
@@ -1701,7 +1728,7 @@ function App() {
     if (!doc) return false;
     if (!validateDocumentForSave(doc)) return false;
     setStatus(`Saving ${documentId}...`);
-    const response = await fetch(`${API_ROOT}/documents/${encodeURIComponent(documentId)}`, {
+    const response = await assignmentFetch(`${API_ROOT}/documents/${encodeURIComponent(documentId)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(documentSavePayload(doc)),
@@ -1746,7 +1773,7 @@ function App() {
     if (!silent) setStatus(`Saving ${docsToSave.length} documents...`);
     const savedDocs = [];
     for (const doc of docsToSave) {
-      const response = await fetch(`${API_ROOT}/documents/${encodeURIComponent(doc.document_id)}`, {
+      const response = await assignmentFetch(`${API_ROOT}/documents/${encodeURIComponent(doc.document_id)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(documentSavePayload(doc, { preserveAnnotationState })),
@@ -1811,7 +1838,7 @@ function App() {
     }
 
     setStatus('Resetting annotation tracking...');
-    const response = await fetch(`${API_ROOT}/tracking/reset`, {
+    const response = await assignmentFetch(`${API_ROOT}/tracking/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -2259,7 +2286,7 @@ function App() {
     <div className={`app-shell layout-${readerWidthMode}`}>
       <header className="topbar">
         <div>
-          <h1>Annotation Search Console</h1>
+          <div className="ws-editor-title"><h1>Document review</h1>{workspaceControl}</div>
           <p>{dataPath || 'data/annotations.jsonl'}</p>
         </div>
         <div
@@ -2911,4 +2938,4 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(<Workspace Editor={App} kind="annotate" />);
