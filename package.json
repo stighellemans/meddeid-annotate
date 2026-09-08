@@ -1,6 +1,6 @@
 {
   "name": "meddeid-annotate",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Local primary-span annotation for canonical MedDeID JSONL",
   "private": true,
   "author": "Stig Hellemans",
